@@ -2,98 +2,126 @@
 //minesweeper
 #include <iostream>
 #include <vector>
+#include <fstream>
+#include <string>
+#include <utility> 
 using namespace std;
 
-vector<vector<int>> EnterMatrix(){
-  unsigned int row, column;
-  bool valid = false;  
-  do{
-    cout << "Enter the number of rows: ";
-    cin >> row;
-    cout << "Enter the number of columns: ";
-    cin >> column;
+pair<int, int> ReadDimensions(ifstream &inputFile) 
+{
+    int rowCount, columnCount;
+    inputFile >> rowCount >> columnCount;
 
-    if((column < 1 || row) < 1 && (column > 200 || row > 200)){
-      cout << "The number of rows and columns is vey big, try again\n";
+    if (rowCount < 1 || columnCount < 1 || rowCount > 200 || columnCount > 200) 
+    {
+        cerr << "Error: Rows and columnumns must be between 1 and 200." << endl;
+        exit(1);
     }
-    else{
-      valid = true;
-    }
-  }while(valid != true);
-  vector<vector<int>> matrix(row, vector<int>(column));
+    return {rowCount, columnCount};
+}
 
-  for(int i = 0; i < row; i++){
-    for(int j = 0; j < column; j++){
-      int num;
-      cout << "Enter the value of the position [" << i << "][" << j << "]: ";
-      cin >> num;
-      if(num == 0 || num == 1){
-        matrix[i][j] = num;
-      }
-      else{
-        cout << "The value must be 0 or 1, try again\n";
-        j--;
-      }
+vector<vector<int>> ReadBoardFromFile(const string &fileName) 
+{
+    ifstream inputFile(fileName);
+    if (!inputFile.is_open()) 
+    {
+        cerr << "Error: Could not open file " << fileName << endl;
+        exit(1);
     }
-  }
-  return matrix;
-}//end EnterMatrix
 
-void PrintMatrix(vector<vector<int>>& matrix){
-  for(int i = 0; i < matrix.size(); i++){
-    for(int j = 0; j < matrix[0].size(); j++){
-      cout << matrix[i][j] << " ";
-    }
-    cout << endl;
-  }
-}//end PrintMatrix
+    pair<int,int> dims = ReadDimensions(inputFile);
+    int rowCount = dims.first;
+    int columnCount = dims.second;
 
-vector<vector<int>> MinesWanted(vector<vector<int>>& originalMatrix){
-  vector<vector<int>> newMatrix(originalMatrix.size(), vector<int>(originalMatrix[0].size()));
-  for(int i = 0; i < newMatrix.size(); i++){
-    for(int j = 0; j < newMatrix[0].size(); j++){
-      newMatrix[i][j] = originalMatrix[i][j];
-      if(i > 0){
-        newMatrix[i][j] += originalMatrix[i-1][j];
-        if(j > 0){
-          newMatrix[i][j] += originalMatrix[i-1][j-1];
+    vector<vector<int>> mineBoard(rowCount, vector<int>(columnCount));
+
+    for (int row = 0; row < rowCount; row++) 
+    {
+        for (int column = 0; column < columnCount; column++) 
+        {
+            int cellValue;
+            if (!(inputFile >> cellValue) || (cellValue != 0 && cellValue != 1)) 
+            {
+                cerr << "Error: The file must contain only 0 or 1." << endl;
+                exit(1);
+            }
+            mineBoard[row][column] = cellValue;
         }
-        if(j < newMatrix[0].size()-1){
-          newMatrix[i][j] += originalMatrix[i-1][j+1];
-        }
-      }
-
-      if(i < newMatrix.size()-1){
-        newMatrix[i][j] += originalMatrix[i+1][j];  
-        if(j > 0){
-          newMatrix[i][j] += originalMatrix[i+1][j-1];
-        }
-        if(j < newMatrix[0].size()-1){
-          newMatrix[i][j] += originalMatrix[i+1][j+1];
-        }
-      }
-      
-      if(j > 0){
-        newMatrix[i][j] += originalMatrix[i][j-1];
-      }
-      if(j < newMatrix[0].size()-1){
-        newMatrix[i][j] += originalMatrix[i][j+1];
-      }
-      
     }
-  }
-  return newMatrix;
-}//end MinesWanted
+    return mineBoard;
+}
 
-int main(){
-  cout << "MineSweeper\n";
-  cout << "This program simule the game MineSweeper\n";
-  cout << "Enter 0 or 1, to indicate if the position is a mine(1) or not(0)\n";
-  vector<vector<int>> matrix = EnterMatrix();
-  cout << "The minefield is:\n";
-  PrintMatrix(matrix);
-  vector<vector<int>> resultMatrix = MinesWanted(matrix);
-  cout << "The minefield with the mines around the positions is:\n";
-  PrintMatrix(resultMatrix);
-  return 0;
+// Prints the board
+void PrintBoard(const vector<vector<int>> &board) 
+{
+    for (size_t row = 0; row < board.size(); row++) 
+    {
+        for (size_t column = 0; column < board[row].size(); column++) 
+        {
+            cout << board[row][column] << " ";
+        }
+        cout << "\n";
+    }
+}
+
+void IncrementNeighbors(vector<vector<int>> &adjacentMinesBoard, int mineRow, int minecolumn) 
+{
+    int rowCount = static_cast<int>(adjacentMinesBoard.size());
+    int columnCount = static_cast<int>(adjacentMinesBoard[0].size());
+
+    for(int rowOffset = -1; rowOffset <= 1; rowOffset++) 
+    {
+        for(int columnOffset = -1; columnOffset <= 1; columnOffset++) 
+        {
+            int neighborRow = mineRow + rowOffset;
+            int neighborcolumn = minecolumn + columnOffset;
+            if((neighborRow >= 0) && (neighborRow < rowCount) && (neighborcolumn >= 0) && (neighborcolumn < columnCount)) 
+            {
+                adjacentMinesBoard[neighborRow][neighborcolumn]++;
+            }
+        }
+    }
+}
+
+vector<vector<int>> CalculateAdjacentMines(const vector<vector<int>> &mineBoard) 
+{
+    int rowCount = static_cast<int>(mineBoard.size());
+    int columnCount = static_cast<int>(mineBoard[0].size());
+    vector<vector<int>> adjacentMinesBoard(rowCount, vector<int>(columnCount, 0));
+
+    for (int row = 0; row < rowCount; row++) 
+    {
+        for (int column = 0; column < columnCount; column++) 
+        {
+            if (mineBoard[row][column] == 1) 
+            {
+                IncrementNeighbors(adjacentMinesBoard, row, column);
+            }
+        }
+    }
+    return adjacentMinesBoard;
+}
+
+int main() 
+{
+    string fileName;
+    
+    cout << "\tMinesweeper\n";
+    cout << "This program simule the game MineSweeper\n";
+    cout << "Reads a board from a file and calculates the number of adjacent mines.\n";
+    
+    cout << "Enter the file name: ";
+    cin >> fileName;
+
+    vector<vector<int>> mineBoard = ReadBoardFromFile(fileName);
+
+    cout << "\nOriginal board:\n";
+    PrintBoard(mineBoard);
+
+    vector<vector<int>> adjacentMinesBoard = CalculateAdjacentMines(mineBoard);
+
+    cout << "\nBoard with adjacent mine counts:\n";
+    PrintBoard(adjacentMinesBoard);
+
+    return 0;
 }
